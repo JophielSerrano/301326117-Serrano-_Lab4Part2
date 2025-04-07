@@ -17,34 +17,24 @@ variables:
 stages:
 - stage: Build
   jobs:
-  - job: BuildAndTest
+  - job: BuildAndPublish
+    pool:
+      vmImage: 'windows-latest'
     steps:
-    - task: NuGetToolInstaller@1
-
-    - task: NuGetCommand@2
+    - task: DotNetCoreCLI@2
       inputs:
-        restoreSolution: '$(solution)'
-
-    - task: VSBuild@1
-      inputs:
-        solution: '$(solution)'
-        msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package'
-        platform: '$(buildPlatform)'
-        configuration: '$(buildConfiguration)'
-
-    - task: VSTest@2
-      inputs:
-        platform: '$(buildPlatform)'
-        configuration: '$(buildConfiguration)'
-
+        command: 'publish'
+        publishWebProjects: true
+        arguments: '-c Release -o $(Build.ArtifactStagingDirectory)/publish'
+        
     - task: PublishBuildArtifacts@1
       inputs:
-        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-        ArtifactName: 'drop'
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/publish'
+        ArtifactName: 'MVCAgileProcess'
 
 - stage: Deploy
   jobs:
-  - deployment: DeployToLocalServer
+  - deployment: DeployToIIS
     environment: 'Production'
     strategy:
       runOnce:
@@ -52,5 +42,12 @@ stages:
           steps:
           - task: IISWebAppManagementOnMachineGroup@0
             inputs:
+              ActionIISWebsite: 'CreateOrUpdateWebsite'
               WebsiteName: 'MVCAgileProcess'
               WebsitePhysicalPath: 'C:\inetpub\wwwroot\MVCAgileProcess'
+
+          - task: CopyFiles@2
+            inputs:
+              SourceFolder: '$(Pipeline.Workspace)/MVCAgileProcess'
+              Contents: '**'
+              TargetFolder: 'C:\inetpub\wwwroot\MVCAgileProcess'
