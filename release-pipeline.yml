@@ -19,18 +19,30 @@ stages:
   jobs:
   - job: BuildAndPublish
     pool:
-      name: 'Default'
+      vmImage: 'windows-latest'
     steps:
+    # Verbose Logging
+    - powershell: |
+        Write-Host "Pipeline Workspace: $(Pipeline.Workspace)"
+        Write-Host "Build ArtifactStagingDirectory: $(Build.ArtifactStagingDirectory)"
+        Write-Host "Agent Build Directory: $(Agent.BuildDirectory)"
+      displayName: 'Debug Pipeline Paths'
+
+    # Comprehensive Publish
     - task: DotNetCoreCLI@2
       inputs:
         command: 'publish'
         publishWebProjects: true
         arguments: '-c Release -o $(Build.ArtifactStagingDirectory)/publish'
-        
+        zipAfterPublish: true
+      displayName: 'Publish Project'
+
+    # Artifact Publication with Detailed Logging
     - task: PublishBuildArtifacts@1
       inputs:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)/publish'
         ArtifactName: 'MVCAgileProcess'
+      displayName: 'Publish Artifacts'
 
 - stage: Deploy
   jobs:
@@ -40,14 +52,24 @@ stages:
       runOnce:
         deploy:
           steps:
-          - task: IISWebAppManagementOnMachineGroup@0
-            inputs:
-              ActionIISWebsite: 'CreateOrUpdateWebsite'
-              WebsiteName: 'MVCAgileProcess'
-              WebsitePhysicalPath: 'C:\inetpub\wwwroot\MVCAgileProcess'
+          # Detailed Deployment Logging
+          - powershell: |
+              Write-Host "Deployment Workspace: $(Pipeline.Workspace)"
+              Get-ChildItem "$(Pipeline.Workspace)" -Recurse
+            displayName: 'List Deployment Artifacts'
 
+          # Explicit File Copy
           - task: CopyFiles@2
             inputs:
               SourceFolder: '$(Pipeline.Workspace)/MVCAgileProcess'
               Contents: '**'
               TargetFolder: 'C:\inetpub\wwwroot\MVCAgileProcess'
+            displayName: 'Copy Deployment Files'
+
+          # Extraction Verification
+          - powershell: |
+              $destination = 'C:\inetpub\wwwroot\MVCAgileProcess'
+              Write-Host "Deployment Folder Contents:"
+              Get-ChildItem $destination -Recurse | 
+                Format-Table FullName, Length, LastWriteTime
+            displayName: 'Verify Deployment'
